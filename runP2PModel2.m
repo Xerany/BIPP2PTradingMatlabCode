@@ -18,6 +18,10 @@ function results = runP2PModel(inputs)
     vecBuy         = inputs.vecBuy;
     vecSell        = inputs.vecSell;
 
+    switch_Cong = inputs.switchCong;
+    lim_Cong = inputs.limCong;
+    mode_Cong = inputs.modeCong;
+
     pricingMechanism = inputs.pricingMechanism;
 
     timestep = inputs.timestep;
@@ -64,11 +68,47 @@ function results = runP2PModel(inputs)
         end
     end
 
+%% Congestion network definition
+
+numActor = length(vecConsumption);
+
+% Path-specific physical network
+% Each row = [fromNode, toNode, capacity]
+edgeList_path = [
+    1 5 lim_Cong
+    5 6 lim_Cong
+    6 2 lim_Cong
+    2 4 lim_Cong
+    4 3 lim_Cong
+    2 7 lim_Cong
+];
+
+% Fully connected network
+edgeList_full = [];
+
+for i = 1:numActor
+    for j = i+1:numActor
+        edgeList_full = [edgeList_full; i j lim_Cong];
+    end
+end
+
+% Select congestion mode
+switch mode_Cong
+    case 'Fully Connected'
+        edgeList = edgeList_full;
+
+    case 'Path specific (7 actors)'
+        edgeList = edgeList_path;
+
+    otherwise
+        error('Unknown congestion mode selected');
+end
+
     %% Run market clearing mechanism
     if pricingMechanism == 'MarketClearing'
-    [arrayActor, tradingArray] = marketClearingMechanism( ...
+    [arrayActor, tradingArray, edgePerc] = marketClearingMechanism( ...
         arrayActor, numActor, totalStep, ...
-        P_grid, C_feedback, C_networkfee, C_platform);
+        P_grid, C_feedback, C_networkfee, C_platform, switch_Cong, lim_Cong, mode_Cong,edgeList);
     else
         disp('Error, wrong pricing mechanism input')
         return
@@ -109,6 +149,10 @@ function results = runP2PModel(inputs)
     results.vecClearPrice = vecClearPrice;
     results.vecGridImport = vecGridImport;
     results.vecGridExport = vecGridExport;
+
+    results.edgePerc = edgePerc;
+    results.edgeList = edgeList;
+    results.modeCong = mode_Cong;
 end
 
 %%
